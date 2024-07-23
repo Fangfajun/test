@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Camera Stream Example</title>
+</head>
+<body>
+    <video id="video" width="640" height="480" autoplay></video>
+    <button id="requestCameraAccess">Request Camera Access</button>
+
+    <script>
+        const video = document.getElementById('video');
+        const button = document.getElementById('requestCameraAccess');
+        const ws = new WebSocket('ws://localhost:3000');
+
+        button.addEventListener('click', () => {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                    video.srcObject = stream;
+                    video.onloadedmetadata = () => {
+                        video.play();
+
+                        // 创建一个 MediaStreamTrackProcessor 实例
+                        const track = stream.getVideoTracks()[0];
+                        const processor = new MediaStreamTrackProcessor({track});
+                        const reader = processor.readable.getReader();
+
+                        // 读取视频帧并发送到服务端
+                        const writer = ws.binaryType = 'arraybuffer';
+                        const sendFrame = () => {
+                            reader.read().then(({done, value}) => {
+                                if (done) {
+                                    return;
+                                }
+                                writer.send(value);
+                                sendFrame();
+                            });
+                        };
+
+                        sendFrame();
+                    };
+                })
+                .catch(error => {
+                    console.error('Error accessing camera:', error);
+                });
+        });
+    </script>
+</body>
+</html>
